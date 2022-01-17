@@ -1,6 +1,8 @@
-const Disbursement = artifacts.require("./Disbursement.sol");
+const Disbursement = artifacts.require("./DisbursementCliff.sol");
 const TestToken = artifacts.require("./TestToken.sol");
+const helper = require("../helpers/utils.js");
 const BigNumber = require("bignumber.js");
+const truffleAssert = require("truffle-assertions");
 
 contract("Disbursement", function (accounts) {
   const ONE_YEAR = 60 * 60 * 24 * 365;
@@ -24,6 +26,7 @@ contract("Disbursement", function (accounts) {
       accounts[5],
       FOUR_YEARS,
       start_date,
+      start_date + ONE_YEAR,
       token.address,
       { from: accounts[0] }
     );
@@ -132,6 +135,74 @@ contract("Disbursement", function (accounts) {
       (await token.balanceOf(accounts[5])).eq(
         old_balance.add(old_disbursement_balance)
       )
+    );
+  });
+
+  it("should not be able to withdraw locked tokens before the cliff time", async () => {
+    const initialBlock = await web3.eth.getBlock(
+      await web3.eth.getBlockNumber()
+    );
+    const start_date = initialBlock.timestamp;
+
+    // # Create Test token
+    const token = await TestToken.new("New Order", "NEWO", {
+      from: accounts[0],
+    });
+
+    // Create disbursement contracts
+    const disbursementCliff = await Disbursement.new(
+      accounts[1],
+      accounts[5],
+      FOUR_YEARS,
+      start_date,
+      start_date + ONE_YEAR,
+      token.address,
+      { from: accounts[0] }
+    );
+
+    await token.mint(disbursementCliff.address, PREASSIGNED_TOKENS);
+
+    truffleAssert.fails(
+      disbursementCliff.withdraw(accounts[0], 1000, { from: accounts[1] }),
+      "Withdraw amount exceeds allowed tokens"
+    );
+  });
+
+  it("should be able to withdraw tokens after the cliff time", async () => {
+    const initialBlock = await web3.eth.getBlock(
+      await web3.eth.getBlockNumber()
+    );
+    const start_date = initialBlock.timestamp;
+
+    // # Create Test token
+    const token = await TestToken.new("New Order", "NEWO", {
+      from: accounts[0],
+    });
+
+    // Create disbursement contracts
+    const disbursementCliff = await Disbursement.new(
+      accounts[1],
+      accounts[5],
+      FOUR_YEARS,
+      start_date,
+      start_date + ONE_YEAR,
+      token.address,
+      { from: accounts[0] }
+    );
+
+    await token.mint(disbursementCliff.address, PREASSIGNED_TOKENS);
+
+    let maxBalance = await disbursementCliff.calcMaxWithdraw();
+    assert.equal(maxBalance.toNumber(), 0);
+
+    // Time travel to 2 years (half of disbursement period)
+    await helper.advanceTimeAndBlock(ONE_YEAR * 2);
+
+    maxBalance = new BigNumber(await disbursementCliff.calcMaxWithdraw());
+    assert.isTrue(maxBalance.shiftedBy(-18).isGreaterThanOrEqualTo(5000000));
+
+    truffleAssert.passes(
+      disbursementCliff.withdraw(accounts[0], 1000, { from: accounts[1] })
     );
   });
 });
