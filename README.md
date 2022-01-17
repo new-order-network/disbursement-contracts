@@ -39,7 +39,8 @@ Transfers tokens to a given address, and has the following parameters:
    
 
 ## function walletWithdraw
-Transfers all tokens to the multisig wallet specified in the constructor
+Transfers all tokens to the multisig wallet specified in the constructor. 
+Can only be called by the `wallet` sepecified in the constructor.
 
 
 ## function calcMaxWithdraw   
