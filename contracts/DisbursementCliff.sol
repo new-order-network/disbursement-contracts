@@ -1,11 +1,11 @@
-pragma solidity ^0.6.0;
-import  "@gnosis.pm/util-contracts/contracts/Token.sol";
+pragma solidity ^0.6.12;
+import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 
 /// @title Disbursement contract - allows to distribute tokens over time with a cliff
 /// @author Stefan George - <stefan@gnosis.pm> modified by New Order Team
 contract DisbursementCliff {
-
+    using SafeERC20 for IERC20;
     /*
      *  Storage
      */
@@ -15,7 +15,7 @@ contract DisbursementCliff {
     uint public startDate;
     uint public cliffDate;
     uint public withdrawnTokens;
-    Token public token;
+    IERC20 public token;
 
     /*
      *  Modifiers
@@ -42,7 +42,7 @@ contract DisbursementCliff {
     /// @param _startDate Start date of disbursement period
     /// @param _cliffDate Time of cliff, before which tokens cannot be withdrawn
     /// @param _token ERC20 token used for the vesting
-    constructor(address _receiver, address _wallet, uint _disbursementPeriod, uint _startDate, uint _cliffDate, Token _token)
+    constructor(address _receiver, address _wallet, uint _disbursementPeriod, uint _startDate, uint _cliffDate, IERC20 _token)
         public
     {
         if (_receiver == address(0) || _wallet == address(0) || _disbursementPeriod == 0 || address(_token) == address(0))
@@ -65,7 +65,7 @@ contract DisbursementCliff {
     /// @param _to Address of token receiver
     /// @param _value Number of tokens to transfer
     function withdraw(address _to, uint256 _value)
-        public
+        external
         isReceiver
     {
         uint maxTokens = calcMaxWithdraw();
@@ -73,17 +73,17 @@ contract DisbursementCliff {
           revert("Withdraw amount exceeds allowed tokens");
         }
         withdrawnTokens += _value;
-        token.transfer(_to, _value);
+        token.safeTransfer(_to, _value);
     }
 
     /// @dev Transfers all tokens to multisig wallet
     function walletWithdraw()
-        public
+        external
         isWallet
     {
         uint balance = token.balanceOf(address(this));
         withdrawnTokens += balance;
-        token.transfer(wallet, balance);
+        token.safeTransfer(wallet, balance);
     }
 
     /// @dev Calculates the maximum amount of vested tokens
